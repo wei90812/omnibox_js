@@ -1,5 +1,105 @@
 const OmniBox = require("omnibox_sdk");
 
+function buildUrlWithParams(url, params) {
+    if (!params || Object.keys(params).length === 0) {
+        return url;
+    }
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        searchParams.append(key, value);
+    }
+    return url + (url.includes('?') ? '&' : '?') + searchParams.toString();
+}
+
+async function requestGet(url, options = {}) {
+    const { params, headers, timeout = 15000 } = options;
+    const fullUrl = buildUrlWithParams(url, params);
+    
+    try {
+        const response = await OmniBox.request(fullUrl, {
+            method: 'GET',
+            headers: headers || {},
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode,
+            data: JSON.parse(response.body || '{}')
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function requestHead(url, options = {}) {
+    const { timeout = 3000 } = options;
+    
+    try {
+        const response = await OmniBox.request(url, {
+            method: 'HEAD',
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
+function buildUrlWithParams(url, params) {
+    if (!params || Object.keys(params).length === 0) {
+        return url;
+    }
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        searchParams.append(key, value);
+    }
+    return url + (url.includes('?') ? '&' : '?') + searchParams.toString();
+}
+
+async function requestGet(url, options = {}) {
+    const { params, headers, timeout = 15000 } = options;
+    const fullUrl = buildUrlWithParams(url, params);
+    
+    try {
+        const response = await OmniBox.request(fullUrl, {
+            method: 'GET',
+            headers: headers || {},
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode,
+            data: JSON.parse(response.body || '{}')
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function requestHead(url, options = {}) {
+    const { timeout = 3000 } = options;
+    
+    try {
+        const response = await OmniBox.request(url, {
+            method: 'HEAD',
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
 const API_HOST = 'https://caiji.kuaichezy.org';
 const API_URL = 'https://caiji.kuaichezy.org/api.php/provide/vod';
 
@@ -7,6 +107,7 @@ const def_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
     'Accept': 'application/json'
 };
+
 
 const DANMU_API = process.env.DANMU_API || '';
 
@@ -235,14 +336,10 @@ async function enrichVideosWithDetails(videos) {
         const end = Math.min(i + batchSize, videoIDs.length);
         const batchIDs = videoIDs.slice(i, end);
         try {
-            const response = await OmniBox.request({
-        method: "GET",
-        url: API_URL,
-        {
+            const response = await requestGet(API_URL, {
                 params: { ac: 'videolist', ids: batchIDs.join(',') },
                 headers: def_headers
-            }
-    });
+            });
             const data = response.data;
             if (Array.isArray(data.list)) {
                 for (const item of data.list) {
@@ -352,7 +449,7 @@ async function getPlayPageUrlSmart(vodId, playFrom = 'default') {
             const testUrl = pattern(vodId);
             logInfo(`尝试播放页URL: ${testUrl}`);
             
-            const headResponse = await axiosInstance.head(testUrl, { timeout: 3000 }).catch(() => null);
+            const headResponse = await requestHead(testUrl, { timeout: 3000 }).catch(() => null);
             if (headResponse && headResponse.status === 200) {
                 logInfo(`发现有效播放页: ${testUrl}`);
                 return testUrl;
@@ -368,15 +465,11 @@ async function getPlayPageUrlSmart(vodId, playFrom = 'default') {
 async function home(params) {
     logInfo("进入首页");
     try {
-        const response = await OmniBox.request(API_URL, {
-            method: 'GET',
-            headers: def_headers,
-            params: { ac: 'list', pg: 1, pagesize: 20 }
+        const res = await requestGet(API_URL, { 
+            params: { ac: 'list', pg: 1, pagesize: 20 },
+            headers: def_headers 
         });
-        if (response.statusCode !== 200) {
-            throw new Error(`HTTP error! status: ${response.statusCode}`);
-        }
-        const data = JSON.parse(response.body || '{}');
+        const data = res.data;
         let videos = formatVideos(data.list || []);
         videos = await enrichVideosWithDetails(videos);
         const classes = (data.class || []).map(item => ({
@@ -396,15 +489,11 @@ async function category(params) {
     const pg = parseInt(page) || 1;
     logInfo(`请求分类: ${categoryId}, 页码: ${pg}`);
     try {
-        const response = await OmniBox.request(API_URL, {
-            method: 'GET',
-            headers: def_headers,
-            params: { ac: 'list', t: categoryId, pg: pg, pagesize: 20 }
+        const res = await requestGet(API_URL, {
+            params: { ac: 'list', t: categoryId, pg: pg, pagesize: 20 },
+            headers: def_headers
         });
-        if (response.statusCode !== 200) {
-            throw new Error(`HTTP error! status: ${response.statusCode}`);
-        }
-        const data = JSON.parse(response.body || '{}');
+        const data = res.data;
         let videos = formatVideos(data.list || []);
         videos = await enrichVideosWithDetails(videos);
         logInfo(`分类结果: ${videos.length}条, 总页数: ${data.pagecount}, 带封面的视频: ${videos.filter(v => v.vod_pic).length} 个`);
@@ -424,15 +513,11 @@ async function search(params) {
     const pg = parseInt(params.page) || 1;
     logInfo(`搜索关键词: ${wd}, 页码: ${pg}`);
     try {
-        const response = await OmniBox.request(API_URL, {
-            method: 'GET',
-            headers: def_headers,
-            params: { ac: 'list', wd: wd, pg: pg, pagesize: 100 }
+        const res = await requestGet(API_URL, {
+            params: { ac: 'list', wd: wd, pg: pg, pagesize: 100 },
+            headers: def_headers
         });
-        if (response.statusCode !== 200) {
-            throw new Error(`HTTP error! status: ${response.statusCode}`);
-        }
-        const data = JSON.parse(response.body || '{}');
+        const data = res.data;
         let videos = formatVideos(data.list || []);
         videos = await enrichVideosWithDetails(videos);
         logInfo(`搜索结果: ${videos.length}条, 总页数: ${data.pagecount}, 总条数: ${data.total || '未知'}`);
@@ -452,14 +537,10 @@ async function detail(params, context) {
     const videoId = params.videoId;
     logInfo(`请求详情: ${videoId}`);
     try {
-        const res = await OmniBox.request({
-        method: "GET",
-        url: API_URL,
-        {
+        const res = await requestGet(API_URL, {
             params: { ac: 'videolist', ids: videoId },
             headers: def_headers
-        }
-    });
+        });
         const data = res.data;
         let videos = formatDetailVideos(data.list || []);
         if (videos.length === 0) return { list: [] };

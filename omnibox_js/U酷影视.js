@@ -1,5 +1,105 @@
 const OmniBox = require("omnibox_sdk");
 
+function buildUrlWithParams(url, params) {
+    if (!params || Object.keys(params).length === 0) {
+        return url;
+    }
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        searchParams.append(key, value);
+    }
+    return url + (url.includes('?') ? '&' : '?') + searchParams.toString();
+}
+
+async function requestGet(url, options = {}) {
+    const { params, headers, timeout = 15000 } = options;
+    const fullUrl = buildUrlWithParams(url, params);
+    
+    try {
+        const response = await OmniBox.request(fullUrl, {
+            method: 'GET',
+            headers: headers || {},
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode,
+            data: JSON.parse(response.body || '{}')
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function requestHead(url, options = {}) {
+    const { timeout = 3000 } = options;
+    
+    try {
+        const response = await OmniBox.request(url, {
+            method: 'HEAD',
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
+function buildUrlWithParams(url, params) {
+    if (!params || Object.keys(params).length === 0) {
+        return url;
+    }
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        searchParams.append(key, value);
+    }
+    return url + (url.includes('?') ? '&' : '?') + searchParams.toString();
+}
+
+async function requestGet(url, options = {}) {
+    const { params, headers, timeout = 15000 } = options;
+    const fullUrl = buildUrlWithParams(url, params);
+    
+    try {
+        const response = await OmniBox.request(fullUrl, {
+            method: 'GET',
+            headers: headers || {},
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode,
+            data: JSON.parse(response.body || '{}')
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function requestHead(url, options = {}) {
+    const { timeout = 3000 } = options;
+    
+    try {
+        const response = await OmniBox.request(url, {
+            method: 'HEAD',
+            timeout: timeout
+        });
+        
+        // 转换响应格式为 axios 格式
+        return {
+            status: response.statusCode
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
 const API_HOST = 'https://api.ukuapi88.com';
 const API_URL = 'https://api.ukuapi88.com/api.php/provide/vod';
 
@@ -7,6 +107,7 @@ const def_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
     'Accept': 'application/json'
 };
+
 
 const DANMU_API = process.env.DANMU_API || '';
 
@@ -212,9 +313,9 @@ function formatDetailVideos(list) {
             vod_play_url: String(item.vod_play_url || ''),
             vod_en: String(item.vod_en || '')
         };
-
+        
         vod.vod_play_sources = parsePlaySources(vod);
-
+        
         return vod;
     }).filter(v => v && v.vod_id);
 }
@@ -235,15 +336,11 @@ async function enrichVideosWithDetails(videos) {
         const end = Math.min(i + batchSize, videoIDs.length);
         const batchIDs = videoIDs.slice(i, end);
         try {
-            const response = await OmniBox.request(API_URL, {
-                method: 'GET',
-                headers: def_headers,
-                params: { ac: 'videolist', ids: batchIDs.join(',') }
+            const response = await requestGet(API_URL, {
+                params: { ac: 'videolist', ids: batchIDs.join(',') },
+                headers: def_headers
             });
-            if (response.statusCode !== 200) {
-                throw new Error(`HTTP error! status: ${response.statusCode}`);
-            }
-            const data = JSON.parse(response.body || '{}');
+            const data = response.data;
             if (Array.isArray(data.list)) {
                 for (const item of data.list) {
                     if (!item || typeof item !== 'object') continue;
@@ -271,20 +368,20 @@ async function enrichVideosWithDetails(videos) {
 
 const parsePlaySources = (vodItem) => {
     const playSources = [];
-
+    
     const vodId = vodItem.vod_id;
     const vodName = vodItem.vod_name;
     const playFrom = vodItem.vod_play_from || 'default';
     const playUrl = vodItem.vod_play_url || '';
-
+    
     if (playUrl) {
         logInfo(`检测到直接播放地址: ${playUrl.substring(0, 100)}...`);
-
+        
         const episodes = playUrl.split('#').map((item, index) => {
             const parts = item.split('$');
             const episodeName = parts[0] || `第${index + 1}集`;
             const directUrl = parts[1] || '';
-
+            
             const fid = `${vodId}#${index}`;
             const playMeta = {
                 sid: vodId,
@@ -294,7 +391,7 @@ const parsePlaySources = (vodItem) => {
                 url: directUrl,
                 isDirect: true
             };
-
+            
             return {
                 name: episodeName,
                 playId: `${directUrl}|||${encodeMeta(playMeta)}`,
@@ -303,7 +400,7 @@ const parsePlaySources = (vodItem) => {
                 _url: directUrl
             };
         }).filter(ep => ep.playId);
-
+        
         if (episodes.length > 0) {
             playSources.push({
                 name: playFrom,
@@ -312,26 +409,26 @@ const parsePlaySources = (vodItem) => {
         }
     } else {
         logInfo(`未检测到直接地址，使用播放页模式`);
-
+        
         const episodes = [{
             name: '正片',
-            playId: `need_resolve:${vodId}|||${encodeMeta({
-                sid: vodId,
-                fid: `${vodId}#0`,
-                v: vodName,
+            playId: `need_resolve:${vodId}|||${encodeMeta({ 
+                sid: vodId, 
+                fid: `${vodId}#0`, 
+                v: vodName, 
                 e: 1,
                 playFrom: playFrom
             })}`,
             _fid: `${vodId}#0`,
             _rawName: '正片'
         }];
-
+        
         playSources.push({
             name: playFrom,
             episodes: episodes
         });
     }
-
+    
     return playSources;
 };
 
@@ -351,19 +448,16 @@ async function getPlayPageUrlSmart(vodId, playFrom = 'default') {
         try {
             const testUrl = pattern(vodId);
             logInfo(`尝试播放页URL: ${testUrl}`);
-
-            const headResponse = await OmniBox.request(testUrl, {
-                method: 'HEAD',
-                timeout: 3000
-            }).catch(() => null);
-            if (headResponse && headResponse.statusCode === 200) {
+            
+            const headResponse = await requestHead(testUrl, { timeout: 3000 }).catch(() => null);
+            if (headResponse && headResponse.status === 200) {
                 logInfo(`发现有效播放页: ${testUrl}`);
                 return testUrl;
             }
         } catch (e) {
         }
     }
-
+    
     logInfo(`未探测到有效播放页，使用默认格式: ${API_HOST}/play/${vodId}.html`);
     return `${API_HOST}/play/${vodId}.html`;
 }
@@ -371,15 +465,11 @@ async function getPlayPageUrlSmart(vodId, playFrom = 'default') {
 async function home(params) {
     logInfo("进入首页");
     try {
-        const res = await OmniBox.request(API_URL, {
-            method: 'GET',
-            headers: def_headers,
-            params: { ac: 'list', pg: 1, pagesize: 20 }
+        const res = await requestGet(API_URL, { 
+            params: { ac: 'list', pg: 1, pagesize: 20 },
+            headers: def_headers 
         });
-        if (res.statusCode !== 200) {
-            throw new Error(`HTTP error! status: ${res.statusCode}`);
-        }
-        const data = JSON.parse(res.body || '{}');
+        const data = res.data;
         let videos = formatVideos(data.list || []);
         videos = await enrichVideosWithDetails(videos);
         const classes = (data.class || []).map(item => ({
@@ -399,15 +489,11 @@ async function category(params) {
     const pg = parseInt(page) || 1;
     logInfo(`请求分类: ${categoryId}, 页码: ${pg}`);
     try {
-        const res = await OmniBox.request(API_URL, {
-            method: 'GET',
-            headers: def_headers,
-            params: { ac: 'list', t: categoryId, pg: pg, pagesize: 20 }
+        const res = await requestGet(API_URL, {
+            params: { ac: 'list', t: categoryId, pg: pg, pagesize: 20 },
+            headers: def_headers
         });
-        if (res.statusCode !== 200) {
-            throw new Error(`HTTP error! status: ${res.statusCode}`);
-        }
-        const data = JSON.parse(res.body || '{}');
+        const data = res.data;
         let videos = formatVideos(data.list || []);
         videos = await enrichVideosWithDetails(videos);
         logInfo(`分类结果: ${videos.length}条, 总页数: ${data.pagecount}, 带封面的视频: ${videos.filter(v => v.vod_pic).length} 个`);
@@ -427,15 +513,11 @@ async function search(params) {
     const pg = parseInt(params.page) || 1;
     logInfo(`搜索关键词: ${wd}, 页码: ${pg}`);
     try {
-        const res = await OmniBox.request(API_URL, {
-            method: 'GET',
-            headers: def_headers,
-            params: { ac: 'list', wd: wd, pg: pg, pagesize: 100 }
+        const res = await requestGet(API_URL, {
+            params: { ac: 'list', wd: wd, pg: pg, pagesize: 100 },
+            headers: def_headers
         });
-        if (res.statusCode !== 200) {
-            throw new Error(`HTTP error! status: ${res.statusCode}`);
-        }
-        const data = JSON.parse(res.body || '{}');
+        const data = res.data;
         let videos = formatVideos(data.list || []);
         videos = await enrichVideosWithDetails(videos);
         logInfo(`搜索结果: ${videos.length}条, 总页数: ${data.pagecount}, 总条数: ${data.total || '未知'}`);
@@ -455,19 +537,15 @@ async function detail(params, context) {
     const videoId = params.videoId;
     logInfo(`请求详情: ${videoId}`);
     try {
-        const res = await OmniBox.request(API_URL, {
-            method: 'GET',
-            headers: def_headers,
-            params: { ac: 'videolist', ids: videoId }
+        const res = await requestGet(API_URL, {
+            params: { ac: 'videolist', ids: videoId },
+            headers: def_headers
         });
-        if (res.statusCode !== 200) {
-            throw new Error(`HTTP error! status: ${res.statusCode}`);
-        }
-        const data = JSON.parse(res.body || '{}');
+        const data = res.data;
         let videos = formatDetailVideos(data.list || []);
         if (videos.length === 0) return { list: [] };
         const vod = videos[0];
-
+        
         const sourceCandidates = [];
         const playSources = Array.isArray(vod.vod_play_sources) ? vod.vod_play_sources : [];
         for (const source of playSources) {
@@ -485,7 +563,7 @@ async function detail(params, context) {
                 });
             }
         }
-
+        
         if (sourceCandidates.length > 0 && vod.vod_name) {
             try {
                 const sourceId = `spider_source_${context.sourceId}_${videoId}`;
@@ -495,11 +573,11 @@ async function detail(params, context) {
                     vod.vod_name,
                     sourceCandidates
                 );
-
+                
                 const metadata = await OmniBox.getScrapeMetadata(sourceId);
                 const scrapeData = metadata?.scrapeData || null;
                 const videoMappings = metadata?.videoMappings || [];
-
+                
                 if (scrapeData) {
                     vod.vod_name = scrapeData.title || scrapeData.name || vod.vod_name;
                     if (scrapeData.poster_path) {
@@ -519,24 +597,24 @@ async function detail(params, context) {
                             .join(',');
                         if (directors) vod.vod_director = directors;
                     }
-
+                    
                     for (const source of playSources) {
                         for (const ep of source.episodes || []) {
                             const meta = ep.playId && ep.playId.includes('|||') ? decodeMeta(ep.playId.split('|||')[1]) : {};
                             const fid = ep._fid || meta.fid;
                             const mapping = videoMappings.find(m => m?.fileId === fid);
                             if (!mapping) continue;
-
+                            
                             const oldName = ep.name;
                             const newName = buildScrapedEpisodeName(scrapeData, mapping, oldName);
                             if (newName && newName !== oldName) {
                                 ep.name = newName;
                             }
-
+                            
                             ep._seasonNumber = mapping.seasonNumber;
                             ep._episodeNumber = mapping.episodeNumber;
                         }
-
+                        
                         const hasEpisodeNumber = (source.episodes || []).some(
                             ep => ep._episodeNumber !== undefined && ep._episodeNumber !== null
                         );
@@ -550,20 +628,20 @@ async function detail(params, context) {
                                 return episodeA - episodeB;
                             });
                         }
-
+                        
                         source.episodes = (source.episodes || []).map(ep => ({
                             name: ep.name,
                             playId: ep.playId
                         }));
                     }
-
+                    
                     vod.vod_play_sources = playSources;
                 }
             } catch (error) {
                 logError("刮削处理失败", error);
             }
         }
-
+        
         logInfo(`详情获取成功: ${vod.vod_name}, 封面: ${vod.vod_pic ? '有' : '无'}`);
         return { list: [vod] };
     } catch (e) {
@@ -575,7 +653,7 @@ async function detail(params, context) {
 async function play(params, context) {
     const rawPlayId = params.playId || '';
     const flag = params.flag || '';
-
+    
     logInfo(`准备播放: ${rawPlayId}, flag: ${flag}`);
 
     let playUrl = rawPlayId;
@@ -589,7 +667,7 @@ async function play(params, context) {
         vodName = meta.v || '';
         episodeName = meta.e || '';
         isDirectAddress = meta.isDirect || false;
-
+        
         if (isDirectAddress) {
             playUrl = mainPlayId;
             logInfo(`使用直接播放地址: ${playUrl}`);
@@ -612,11 +690,11 @@ async function play(params, context) {
         if (sourceVideoId) {
             const sourceId = `spider_source_${context.sourceId}_${sourceVideoId}`;
             const metadata = await OmniBox.getScrapeMetadata(sourceId);
-
+            
             if (metadata && metadata.scrapeData) {
                 const meta = rawPlayId.includes('|||') ? decodeMeta(rawPlayId.split('|||')[1] || '') : {};
                 const mapping = (metadata.videoMappings || []).find(m => m?.fileId === meta.fid);
-
+                
                 scrapedDanmuFileName = buildScrapedDanmuFileName(
                     metadata.scrapeData,
                     metadata.scrapeType || '',
@@ -624,7 +702,7 @@ async function play(params, context) {
                     vodName,
                     episodeName
                 );
-
+                
                 if (metadata.scrapeData.title) {
                     vodName = metadata.scrapeData.title;
                 }
@@ -642,11 +720,11 @@ async function play(params, context) {
     let parse = 1;
 
     const isDirectPlayable = /\.(m3u8|mp4|flv|avi|mkv|ts)(?:\?|#|$)/i.test(playUrl || '');
-
+    
     if (isDirectPlayable || isDirectAddress) {
         parse = 0;
         logInfo(`使用直接播放地址: ${playUrl}`);
-    }
+    } 
     else if (/^https?:\/\//i.test(playUrl || '')) {
         try {
             const sniffResult = await OmniBox.sniffVideo(playUrl);
@@ -662,9 +740,9 @@ async function play(params, context) {
     }
 
     const response = {
-        urls: [{
-            name: '默认线路',
-            url: resolvedUrl
+        urls: [{ 
+            name: '默认线路', 
+            url: resolvedUrl 
         }],
         flag: flag,
         header: resolvedHeader,
@@ -676,7 +754,7 @@ async function play(params, context) {
         if (vodName) {
             fileName = scrapedDanmuFileName || buildFileNameForDanmu(vodName, episodeName);
         }
-
+        
         if (fileName) {
             const danmakuList = await matchDanmu(fileName);
             if (danmakuList && danmakuList.length > 0) {
