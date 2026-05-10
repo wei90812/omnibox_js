@@ -5,8 +5,8 @@ const runner = require("spider_runner");
 const CONFIG = {
   // 接口配置
   API: {
-    HOST: "https://bfzyapi.com",
-    VOD: "https://bfzyapi.com/api.php/provide/vod",
+    HOST: "https://cj.lziapi.com",
+    VOD: "https://cj.lziapi.com/api.php/provide/vod",
     DANMU_API: process.env.DANMU_API || "",
     TIMEOUT: {
       GET: 15000,

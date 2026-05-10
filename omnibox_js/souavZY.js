@@ -5,8 +5,8 @@ const runner = require("spider_runner");
 const CONFIG = {
   // 接口配置
   API: {
-    HOST: "https://www.yyzywcj.com",
-    VOD: "https://www.yyzywcj.com/api.php/provide/vod",
+    HOST: "https://api.souavzyw.net",
+    VOD: "https://api.souavzyw.net/api.php/provide/vod",
     DANMU_API: process.env.DANMU_API || "",
     TIMEOUT: {
       GET: 15000,
@@ -148,13 +148,13 @@ function buildUrlWithParams(url, params) {
 function logInfo(message, data = null) {
   if (!CONFIG.LOG.ENABLE_INFO) return;
   const output = data ? `${message}: ${JSON.stringify(data, null, 2)}` : message;
-  OmniBox.log("info", `[优优资源] ${output}`);
+  OmniBox.log("info", `[souavZY] ${output}`);
 }
 
 function logError(message, error) {
   if (!CONFIG.LOG.ENABLE_ERROR) return;
   const errorDetail = error?.stack || error?.message || String(error);
-  OmniBox.log("error", `[优优资源] ${message}: ${errorDetail}`);
+  OmniBox.log("error", `[souavZY] ${message}: ${errorDetail}`);
 }
 
 function delay(ms) {
@@ -819,7 +819,7 @@ async function bootstrap() {
     }
     const exports = { home, category, search, detail, play };
     runner.run(exports);
-    logInfo("优优资源爬虫脚本启动成功");
+    logInfo("souavZY爬虫脚本启动成功");
   } catch (error) {
     logError("脚本全局启动异常", error);
   }
